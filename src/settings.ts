@@ -2,7 +2,7 @@
  * 插件设置 — SettingTab UI + 配置接口定义 + 数据持久化到 data.json。
  */
 
-import { App, PluginSettingTab, Setting } from 'obsidian';
+import { App, PluginSettingTab, Setting, Notice } from 'obsidian';
 import type AstrbotConnectPlugin from '../main';
 
 /** 插件配置接口 */
@@ -55,7 +55,6 @@ export class AstrbotConnectSettingTab extends PluginSettingTab {
                     .setValue(this.plugin.settings.astrbotUrl)
                     .onChange(async (value) => {
                         this.plugin.settings.astrbotUrl = value || 'ws://127.0.0.1:27123';
-                        await this.plugin.saveSettings();
                     })
             );
 
@@ -71,7 +70,6 @@ export class AstrbotConnectSettingTab extends PluginSettingTab {
                     .setValue(this.plugin.settings.apiToken)
                     .onChange(async (value) => {
                         this.plugin.settings.apiToken = value;
-                        await this.plugin.saveSettings();
                     })
             );
 
@@ -81,7 +79,6 @@ export class AstrbotConnectSettingTab extends PluginSettingTab {
             .addButton((button) =>
                 button.setButtonText('生成').onClick(async () => {
                     this.plugin.settings.apiToken = crypto.randomUUID();
-                    await this.plugin.saveSettings();
                     this.display();
                 })
             );
@@ -101,7 +98,6 @@ export class AstrbotConnectSettingTab extends PluginSettingTab {
                             .split('\n')
                             .map((s) => s.trim())
                             .filter((s) => s.length > 0);
-                        await this.plugin.saveSettings();
                     })
             );
 
@@ -117,7 +113,6 @@ export class AstrbotConnectSettingTab extends PluginSettingTab {
                             .split('\n')
                             .map((s) => s.trim())
                             .filter((s) => s.length > 0);
-                        await this.plugin.saveSettings();
                     })
             );
 
@@ -133,8 +128,18 @@ export class AstrbotConnectSettingTab extends PluginSettingTab {
                             .split('\n')
                             .map((s) => s.trim())
                             .filter((s) => s.length > 0);
-                        await this.plugin.saveSettings();
                     })
+            );
+
+        new Setting(containerEl)
+            .setName('保存并应用')
+            .setDesc('保存设置后需要重启 Obsidian 或重新加载插件')
+            .addButton((button) =>
+                button.setButtonText('保存并重连').onClick(async () => {
+                    await this.plugin.saveSettings();
+                    new Notice('设置已保存！正在重连...');
+                    await this.plugin.reconnect();
+                })
             );
     }
 }

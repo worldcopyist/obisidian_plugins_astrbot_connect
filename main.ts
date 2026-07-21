@@ -55,12 +55,18 @@ export default class AstrbotConnectPlugin extends Plugin {
     }
 
     async saveSettings(): Promise<void> {
-        await this.saveData(this.settings);
-        console.log('[obsidian-astrbot] settings saved');
-        if (this.wsClient) {
-            await this.stopConnection();
-            await this.startConnection();
+        try {
+            await this.saveData(this.settings);
+            console.log('[obsidian-astrbot] settings saved to data.json — token:', this.settings.apiToken ? '***' : 'EMPTY');
+        } catch (e) {
+            console.error('[obsidian-astrbot] saveData failed:', e);
         }
+    }
+
+    /** 手动重连（供设置面板调用）。 */
+    async reconnect(): Promise<void> {
+        if (this.wsClient) await this.stopConnection();
+        await this.startConnection();
     }
 
     // ── 内部方法 ──────────────────────────────
