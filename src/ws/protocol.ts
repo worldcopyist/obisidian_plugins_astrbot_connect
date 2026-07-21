@@ -5,7 +5,7 @@
  * {
  *   "id": "uuid-v4",
  *   "type": "request | response | event",
- *   "action": "auth | search | read | write | delete | sync_full | sync_since | check_consistency | ping | pong",
+ *   "action": "auth | search | read | write | delete | sync_full | sync_since | check_consistency | file_changed | ping | pong",
  *   "payload": {},
  *   "error": null,
  *   "timestamp": 1711560000
@@ -13,7 +13,7 @@
  */
 
 import { WebSocket } from 'ws';
-import { timingSafeEqual } from 'crypto';
+import { timingSafeEqual, randomUUID } from 'crypto';
 import type { AstrbotConnectSettings } from '../settings';
 
 /** 协议消息接口 */
@@ -73,12 +73,12 @@ export function parseMessage(raw: string): ProtocolMessage {
     }
 
     return {
-        id: data.id || '',
+        id: data.id ?? '',
         type: data.type as 'request' | 'response' | 'event',
         action: data.action,
-        payload: data.payload || {},
-        error: data.error || null,
-        timestamp: data.timestamp || Math.floor(Date.now() / 1000),
+        payload: data.payload ?? {},
+        error: data.error ?? null,
+        timestamp: data.timestamp ?? Math.floor(Date.now() / 1000),
     };
 }
 
@@ -117,7 +117,7 @@ export function buildEvent(
     payload: Record<string, any>
 ): ProtocolMessage {
     return {
-        id: crypto.randomUUID(),
+        id: randomUUID(),
         type: 'event',
         action,
         payload,
@@ -179,16 +179,21 @@ export function stringifyMessage(msg: ProtocolMessage): string {
  * @returns 规范化后的安全路径，如果路径非法则返回 null
  */
 export function sanitizePath(requestedPath: string): string | null {
-    // 去除开头的 /
-    let clean = requestedPath.replace(/\\/g, '/').replace(/^\/+/, '');
+    // 拒绝 Unix 绝对路径
+    if (requestedPath.startsWith('/')) {
+        return null;
+    }
+
+    // 规范化分隔符并去除开头的 /
+    const clean = requestedPath.replace(/\\/g, '/').replace(/^\/+/, '');
 
     // 防目录穿越：拒绝包含 .. 的路径
     if (clean.includes('..')) {
         return null;
     }
 
-    // 拒绝绝对路径
-    if (clean.startsWith('/') || /^[A-Za-z]:/.test(clean)) {
+    // 拒绝 Windows 绝对路径
+    if (/^[A-Za-z]:/i.test(clean)) {
         return null;
     }
 
