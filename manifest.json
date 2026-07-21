@@ -1,0 +1,10 @@
+{
+  "id": "obsidian-astrbot-connect",
+  "name": "AstrBot Connect",
+  "version": "1.0.0",
+  "minAppVersion": "1.5.0",
+  "description": "Connect your Obsidian vault to AstrBot chatbot. WebSocket server for hybrid search, file operations, and real-time sync.",
+  "author": "worldcopyist",
+  "authorUrl": "https://github.com/worldcopyist",
+  "isDesktopOnly": true
+}

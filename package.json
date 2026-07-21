@@ -1,0 +1,22 @@
+{
+  "name": "obsidian-astrbot-connect",
+  "version": "1.0.0",
+  "description": "Connect Obsidian vault to AstrBot chatbot — WebSocket server for hybrid search, file CRUD, and real-time sync",
+  "main": "main.js",
+  "scripts": {
+    "dev": "node esbuild.config.mjs",
+    "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production"
+  },
+  "keywords": ["obsidian", "astrbot", "knowledge-base", "websocket", "sync"],
+  "author": "worldcopyist",
+  "license": "MIT",
+  "dependencies": {
+    "ws": "^8.16.0"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.5.10",
+    "esbuild": "^0.20.0",
+    "obsidian": "latest",
+    "typescript": "^5.3.0"
+  }
+}
