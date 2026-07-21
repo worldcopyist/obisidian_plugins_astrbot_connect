@@ -2,7 +2,7 @@
  * 文件操作处理器 — read / write / delete。
  */
 
-import { App, TFile, normalizePath } from 'obsidian';
+import { App, TFile } from 'obsidian';
 import { AuthenticatedWebSocket, ProtocolMessage, buildResponse, stringifyMessage, sanitizePath } from '../ws/protocol';
 import { sha256, parseFrontmatter } from '../utils';
 

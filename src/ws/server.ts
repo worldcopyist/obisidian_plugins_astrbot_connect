@@ -38,8 +38,6 @@ export class WsServer {
     /** 已认证的客户端列表 */
     private clients: Set<AuthenticatedWebSocket> = new Set();
 
-    /** 广播回调 — main.ts 设置，用于 watcher 推送 */
-    public onBroadcast: ((msg: ProtocolMessage) => void) | null = null;
 
     constructor(
         host: string,
@@ -229,7 +227,7 @@ export class WsServer {
                     break;
 
                 case 'check_consistency':
-                    await handleCheckConsistency(this.app, msg, ws);
+                    await handleCheckConsistency(this.app, msg, ws, this.settings);
                     break;
 
                 case 'ping':

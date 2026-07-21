@@ -188,7 +188,7 @@ export function sanitizePath(requestedPath: string): string | null {
     const clean = requestedPath.replace(/\\/g, '/').replace(/^\/+/, '');
 
     // 防目录穿越：拒绝包含 .. 的路径
-    if (clean.includes('..')) {
+    if (/(?:^|\/)\.\.(?:$|\/)/.test(clean)) {
         return null;
     }
 

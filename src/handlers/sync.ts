@@ -2,7 +2,7 @@
  * 同步处理器 — sync_full / sync_since / check_consistency。
  */
 
-import { App, TFile } from 'obsidian';
+import { App } from 'obsidian';
 import { AuthenticatedWebSocket, ProtocolMessage, buildResponse, stringifyMessage, sanitizePath } from '../ws/protocol';
 import { AstrbotConnectSettings } from '../settings';
 import { sha256, isIndexable, parseFrontmatter } from '../utils';
@@ -141,7 +141,8 @@ export async function handleSyncSince(
 export async function handleCheckConsistency(
     app: App,
     msg: ProtocolMessage,
-    ws: AuthenticatedWebSocket
+    ws: AuthenticatedWebSocket,
+    settings: AstrbotConnectSettings
 ): Promise<void> {
     const manifest: Array<{ path: string; hash: string; mtime: number }> = msg.payload?.manifest || [];
     const mismatches: Array<{ path: string; current_hash: string; current_mtime: number }> = [];
@@ -167,6 +168,11 @@ export async function handleCheckConsistency(
                 current_hash: '',
                 current_mtime: 0,
             });
+            continue;
+        }
+
+        // 跳过不在索引范围内的文件
+        if (!isIndexable(file, settings)) {
             continue;
         }
 

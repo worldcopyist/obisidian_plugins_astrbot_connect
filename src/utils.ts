@@ -50,6 +50,9 @@ export function isIndexable(file: TFile, settings: AstrbotConnectSettings): bool
         }
     }
 
+    // NOTE: includeTags filtering is deferred to the caller.
+    // isIndexable only receives TFile (not file content), so tag-based
+    // filtering must be done by the caller after reading frontmatter.
     return true;
 }
 

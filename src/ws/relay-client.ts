@@ -18,7 +18,6 @@ import {
     parseMessage,
     buildResponse,
     stringifyMessage,
-    verifyToken,
 } from './protocol';
 import { handleAuth } from '../handlers/auth';
 import { handleSearch } from '../handlers/search';
@@ -39,8 +38,6 @@ export class RelayClient {
     private reconnectTimer: NodeJS.Timeout | null = null;
     private channel: string;
 
-    /** 广播回调 — main.ts 设置，用于 watcher 推送 */
-    public onBroadcast: ((msg: ProtocolMessage) => void) | null = null;
 
     constructor(relayUrl: string, app: App, settings: AstrbotConnectSettings) {
         this.relayUrl = relayUrl;
@@ -169,7 +166,7 @@ export class RelayClient {
 
         // 检查是否为中继转发的消息
         if (data.type === 'relay' && data.message) {
-            const msg = data.message as ProtocolMessage;
+            const msg = parseMessage(JSON.stringify(data.message));
 
             // 路由到 handler（复用同一套逻辑）
             await this.routeMessage(msg);
@@ -178,17 +175,6 @@ export class RelayClient {
 
     /** 路由消息（与 WsServer.handleMessage 相同逻辑） */
     private async routeMessage(msg: ProtocolMessage): Promise<void> {
-        // 对 AUTH 特殊处理：标记为已认证
-        if (msg.action === 'auth') {
-            const token = msg.payload?.token || '';
-            const expected = this.settings.apiToken;
-            if (expected && token === expected) {
-                this.authenticated = true;
-            } else if (!expected) {
-                this.authenticated = true;
-            }
-        }
-
         // 创建虚拟 WebSocket 用于 handler（中继模式下 handler 需要它来 send 响应）
         const virtualWs = {
             isAuthenticated: this.authenticated,
@@ -210,10 +196,21 @@ export class RelayClient {
             },
         } as unknown as AuthenticatedWebSocket;
 
+        // 非 auth 请求需要认证
+        if (msg.type === 'request' && msg.action !== 'auth' && !this.authenticated) {
+            virtualWs.send(
+                stringifyMessage(
+                    buildResponse(msg.id, msg.action, {}, 'Unauthorized')
+                )
+            );
+            return;
+        }
+
         try {
             switch (msg.action) {
                 case 'auth':
                     handleAuth(virtualWs, msg, this.settings);
+                    this.authenticated = virtualWs.isAuthenticated;
                     break;
                 case 'search':
                     await handleSearch(this.app, msg, virtualWs, this.settings);
@@ -234,7 +231,7 @@ export class RelayClient {
                     await handleSyncSince(this.app, msg, virtualWs, this.settings);
                     break;
                 case 'check_consistency':
-                    await handleCheckConsistency(this.app, msg, virtualWs);
+                    await handleCheckConsistency(this.app, msg, virtualWs, this.settings);
                     break;
                 case 'ping':
                     virtualWs.send(
