@@ -2,11 +2,11 @@
  * 搜索处理器 — vault 本地全文搜索。
  *
  * 遍历 vault 中所有 .md 文件，进行关键词匹配，
- * 简单的 TF-IDF 风格评分，返回 Top-K 结果。
+ * 基于 TF 加权的相关性评分，返回 Top-K 结果。
  */
 
 import { App, TFile } from 'obsidian';
-import { AuthenticatedWebSocket, ProtocolMessage, buildResponse, stringifyMessage, sanitizePath } from '../ws/protocol';
+import { AuthenticatedWebSocket, ProtocolMessage, buildResponse, stringifyMessage } from '../ws/protocol';
 import { AstrbotConnectSettings } from '../settings';
 import { isIndexable, parseFrontmatter } from '../utils';
 
@@ -38,21 +38,26 @@ export async function handleSearch(
             continue;
         }
 
-        const content = await app.vault.read(file);
-        const score = computeScore(query, file, content, mode);
+        try {
+            const content = await app.vault.read(file);
+            const score = computeScore(query, file, content, mode);
 
-        if (score > 0) {
-            const { data: frontmatter } = parseFrontmatter(content);
-            const title = frontmatter.title || file.basename;
-            const snippet = extractSnippet(content, query, 200);
+            if (score > 0) {
+                const { data: frontmatter } = parseFrontmatter(content);
+                const title = frontmatter.title || file.basename;
+                const snippet = extractSnippet(content, query, 200);
 
-            results.push({
-                path: file.path,
-                title,
-                snippet,
-                score: Math.round(score * 1000) / 1000,
-                mtime: file.stat.mtime,
-            });
+                results.push({
+                    path: file.path,
+                    title,
+                    snippet,
+                    score: Math.round(score * 1000) / 1000,
+                    mtime: file.stat.mtime,
+                });
+            }
+        } catch (e) {
+            // 跳过读取失败的文件
+            console.error(`Search: failed to read ${file.path}:`, e);
         }
     }
 
@@ -74,7 +79,7 @@ interface SearchResult {
 
 /**
  * 计算文件对查询的相关性分数。
- * 简单实现：文件名匹配 + 内容关键词匹配，TF 加权。
+ * 简单实现：文件名匹配 + 内容关键词匹配，基于 TF 加权。
  */
 function computeScore(query: string, file: TFile, content: string, mode: string): number {
     const queryLower = query.toLowerCase();
@@ -114,27 +119,28 @@ function escapeRegExp(s: string): string {
 
 /**
  * 从内容中提取围绕查询关键词的摘要片段。
+ * 使用去 frontmatter 后的正文进行提取。
  */
 function extractSnippet(content: string, query: string, maxLen: number): string {
     const queryLower = query.toLowerCase();
-    const contentLower = content.toLowerCase();
 
-    // 去 frontmatter
+    // 去 frontmatter，使用正文作为摘要来源
     const bodyIdx = content.startsWith('---')
         ? content.indexOf('---', 3)
         : -1;
     const body = bodyIdx !== -1 ? content.substring(bodyIdx + 3).trim() : content;
 
-    const idx = contentLower.indexOf(queryLower);
+    const bodyLower = body.toLowerCase();
+    const idx = bodyLower.indexOf(queryLower);
     if (idx === -1) {
-        // 取开头
+        // 查询未命中正文时，取正文开头
         return body.substring(0, maxLen).replace(/\n/g, ' ') + (body.length > maxLen ? '...' : '');
     }
 
     const start = Math.max(0, idx - Math.floor(maxLen / 2));
-    const end = Math.min(content.length, start + maxLen);
-    let snippet = content.substring(start, end).replace(/\n/g, ' ').trim();
+    const end = Math.min(body.length, start + maxLen);
+    let snippet = body.substring(start, end).replace(/\n/g, ' ').trim();
     if (start > 0) snippet = '...' + snippet;
-    if (end < content.length) snippet = snippet + '...';
+    if (end < body.length) snippet = snippet + '...';
     return snippet;
 }
