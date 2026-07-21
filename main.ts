@@ -73,7 +73,7 @@ export default class AstrbotConnectPlugin extends Plugin {
         if (this.watcher) {
             this.watcher.setBroadcastFn((msg) => {
                 if (this.wsClient) {
-                    this.wsClient.sendEvent(msg);
+                    this.wsClient.send(msg);
                 }
             });
         }

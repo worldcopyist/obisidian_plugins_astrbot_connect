@@ -3,15 +3,17 @@
  */
 
 import { TFile } from 'obsidian';
-import { createHash } from 'crypto';
 import { AstrbotConnectSettings } from './settings';
 
 /**
  * 计算字符串的 SHA-256 hex 摘要。
- * 用于文件一致性校验。
+ * 使用 Web Crypto API（兼容浏览器）。
  */
-export function sha256(content: string): string {
-    return createHash('sha256').update(content, 'utf8').digest('hex');
+export async function sha256(content: string): Promise<string> {
+    const data = new TextEncoder().encode(content);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
 /**

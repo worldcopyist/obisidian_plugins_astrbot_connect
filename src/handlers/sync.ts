@@ -49,7 +49,7 @@ export async function handleSyncFull(
     for (const file of batch) {
         try {
             const content = await app.vault.read(file);
-            const hash = sha256(content);
+            const hash = await sha256(content);
             const { data: frontmatter } = parseFrontmatter(content);
 
             files.push({
@@ -109,7 +109,7 @@ export async function handleSyncSince(
 
             try {
                 const content = await app.vault.read(file);
-                const hash = sha256(content);
+                const hash = await sha256(content);
 
                 changes.push({
                     path: file.path,
@@ -179,7 +179,7 @@ export async function handleCheckConsistency(
         // 总是校验 hash（不依赖 mtime 匹配，因为外部工具可能保留 mtime 但修改内容）
         try {
             const content = await app.vault.read(file);
-            const currentHash = sha256(content);
+            const currentHash = await sha256(content);
             if (currentHash !== entry.hash || file.stat.mtime !== entry.mtime) {
                 mismatches.push({
                     path: safePath,

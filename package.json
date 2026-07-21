@@ -10,11 +10,7 @@
   "keywords": ["obsidian", "astrbot", "knowledge-base", "websocket", "sync"],
   "author": "worldcopyist",
   "license": "MIT",
-  "dependencies": {
-    "ws": "^8.16.0"
-  },
   "devDependencies": {
-    "@types/ws": "^8.5.10",
     "esbuild": "^0.20.0",
     "obsidian": "latest",
     "typescript": "^5.3.0"

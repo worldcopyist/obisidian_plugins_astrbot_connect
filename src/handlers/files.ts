@@ -34,7 +34,7 @@ export async function handleRead(
     try {
         const content = await app.vault.read(file);
         const { data: frontmatter } = parseFrontmatter(content);
-        const hash = sha256(content);
+        const hash = await sha256(content);
 
         const response = buildResponse(msg.id, 'read', {
             path: safePath,
@@ -92,7 +92,7 @@ export async function handleWrite(
         }
 
         const file = app.vault.getFileByPath(finalPath);
-        const hash = sha256(content);
+        const hash = await sha256(content);
 
         const response = buildResponse(msg.id, 'write', {
             ok: true,

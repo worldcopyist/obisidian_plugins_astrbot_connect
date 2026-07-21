@@ -111,7 +111,7 @@ export class VaultWatcher {
             try {
                 const content = await this.plugin.app.vault.read(file);
                 payload.content = content;
-                payload.hash = sha256(content);
+                payload.hash = await sha256(content);
             } catch (e) {
                 console.error(`VaultWatcher: failed to read ${file.path}:`, e);
                 return;

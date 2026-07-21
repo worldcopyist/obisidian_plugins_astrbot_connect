@@ -1,19 +1,15 @@
 /**
  * WebSocket 客户端 — 连接 AstrBot 服务端，发送认证和事件。
  *
- * Obsidian 作为客户端主动连接 AstrBot 的 WS Server，
- * 认证后处理 AstrBot 发来的请求（search/read/write/delete/sync）
- * 并推送 file_changed 事件。
+ * 使用浏览器原生 WebSocket API（非 Node.js ws 包），兼容 Obsidian Electron 环境。
+ * Obsidian 作为客户端主动连接 AstrBot 的 WS Server。
  */
 
-import { WebSocket } from 'ws';
 import { App } from 'obsidian';
 import type { AstrbotConnectSettings } from '../settings';
 import {
-    ProtocolMessage,
     parseMessage,
     buildResponse,
-    buildEvent,
     stringifyMessage,
 } from './protocol';
 import { handleSearch } from '../handlers/search';
@@ -32,11 +28,8 @@ export class WsClient {
     private ws: WebSocket | null = null;
     private connected = false;
     private authenticated = false;
-    private reconnectTimer: NodeJS.Timeout | null = null;
+    private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
     private reconnectDelay = 5000;
-
-    /** 广播回调 — main.ts 设置，用于 watcher 推送 file_changed */
-    public onBroadcast: ((msg: ProtocolMessage) => void) | null = null;
 
     constructor(url: string, token: string, app: App, settings: AstrbotConnectSettings) {
         this.url = url;
@@ -45,49 +38,48 @@ export class WsClient {
         this.settings = settings;
     }
 
-    /** 连接到 AstrBot WS Server 并认证。 */
+    /** 连接并认证。返回 true 表示 TCP 连接已建立（认证异步完成）。 */
     async connect(): Promise<boolean> {
         return new Promise((resolve) => {
             try {
+                console.log('WsClient: connecting to', this.url);
                 this.ws = new WebSocket(this.url);
 
-                this.ws.on('open', () => {
+                this.ws.onopen = () => {
+                    console.log('WsClient: TCP connected, sending auth...');
                     this.connected = true;
-                    // 发送认证
                     const vaultName = this.app.vault.getName();
                     const authMsg = {
                         id: crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2),
                         type: 'request',
                         action: 'auth',
-                        payload: {
-                            token: this.token,
-                            vault_name: vaultName,
-                        },
+                        payload: { token: this.token, vault_name: vaultName },
                         error: null,
                         timestamp: Math.floor(Date.now() / 1000),
                     };
                     this.ws!.send(JSON.stringify(authMsg));
-                });
+                    resolve(true);
+                };
 
-                this.ws.on('message', (data: Buffer) => {
-                    this.handleMessage(data.toString('utf8'));
-                });
+                this.ws.onmessage = (event: MessageEvent) => {
+                    const raw = typeof event.data === 'string' ? event.data : '';
+                    if (raw) this.handleMessage(raw);
+                };
 
-                this.ws.on('close', (code: number) => {
-                    console.log('WsClient: disconnected, code:', code);
+                this.ws.onclose = (event: CloseEvent) => {
+                    console.log('WsClient: disconnected, code:', event.code, 'reason:', event.reason);
                     this.connected = false;
                     this.authenticated = false;
-                    this.scheduleReconnect();
-                });
+                    this.ws = null;
+                    if (event.code !== 1000) this.scheduleReconnect();
+                };
 
-                this.ws.on('error', (error: Error) => {
-                    console.error('WsClient: error:', error.message);
-                    if (!this.connected) {
-                        resolve(false);
-                    }
-                });
+                this.ws.onerror = () => {
+                    console.error('WsClient: connection error');
+                    if (!this.connected) resolve(false);
+                };
             } catch (e) {
-                console.error('WsClient: failed to connect:', e);
+                console.error('WsClient: failed to create WebSocket:', e);
                 resolve(false);
             }
         });
@@ -112,30 +104,22 @@ export class WsClient {
         return this.connected && this.authenticated;
     }
 
-    /** 发送 file_changed 事件到 AstrBot。 */
-    sendEvent(msg: ProtocolMessage): void {
-        if (!this.ws || this.ws.readyState !== WebSocket.OPEN || !this.authenticated) {
-            return;
-        }
+    /** 发送消息到 AstrBot（接受对象或字符串）。 */
+    send(data: any): void {
+        if (!this.ws || this.ws.readyState !== WebSocket.OPEN || !this.authenticated) return;
         try {
-            this.ws.send(stringifyMessage(msg));
-        } catch (e) {
-            console.error('WsClient: send error:', e);
-        }
+            const payload = typeof data === 'string' ? data : stringifyMessage(data);
+            this.ws.send(payload);
+        } catch (e) { console.error('WsClient: send error:', e); }
     }
 
-    // ── 内部方法 ──────────────────────────────
+    // ── 内部 ────────────────────────────────────────
 
     private handleMessage(raw: string): void {
-        let msg: ProtocolMessage;
-        try {
-            msg = parseMessage(raw);
-        } catch (e) {
-            console.error('WsClient: parse error:', e);
-            return;
-        }
+        let msg: any;
+        try { msg = parseMessage(raw); } catch (e) { return; }
 
-        // 处理认证响应
+        // 认证响应
         if (msg.type === 'response' && msg.action === 'auth') {
             if (msg.payload?.ok) {
                 this.authenticated = true;
@@ -147,64 +131,34 @@ export class WsClient {
             return;
         }
 
-        // 处理 ping
+        // ping
         if (msg.type === 'request' && msg.action === 'ping') {
-            const pong = buildResponse(msg.id, 'pong', {
-                server_time: Math.floor(Date.now() / 1000),
-            });
-            this.ws?.send(stringifyMessage(pong));
+            this.ws?.send(stringifyMessage(buildResponse(msg.id, 'pong', { server_time: Math.floor(Date.now() / 1000) })));
             return;
         }
 
-        // 仅处理来自 AstrBot 的 request（已认证后）
         if (msg.type !== 'request') return;
-
         this.routeRequest(msg);
     }
 
-    private async routeRequest(msg: ProtocolMessage): Promise<void> {
+    private async routeRequest(msg: any): Promise<void> {
         const send = (data: string) => {
-            if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-                this.ws.send(data);
-            }
+            if (this.ws && this.ws.readyState === WebSocket.OPEN) this.ws.send(data);
         };
-
-        // 虚拟 AuthenticatedWebSocket（客户端模式不需要 isAuthenticated 字段）
-        const virtualWs: any = {
-            isAuthenticated: true,
-            send,
-            close: () => {},
-        };
+        const virtualWs: any = { isAuthenticated: true, send, close: () => {} };
 
         try {
             switch (msg.action) {
-                case 'search':
-                    await handleSearch(this.app, msg, virtualWs, this.settings);
-                    break;
-                case 'read':
-                    await handleRead(this.app, msg, virtualWs);
-                    break;
-                case 'write':
-                    await handleWrite(this.app, msg, virtualWs);
-                    break;
-                case 'delete':
-                    await handleDelete(this.app, msg, virtualWs);
-                    break;
-                case 'sync_full':
-                    await handleSyncFull(this.app, msg, virtualWs, this.settings);
-                    break;
-                case 'sync_since':
-                    await handleSyncSince(this.app, msg, virtualWs, this.settings);
-                    break;
-                case 'check_consistency':
-                    await handleCheckConsistency(this.app, msg, virtualWs, this.settings);
-                    break;
-                default:
-                    send(stringifyMessage(buildResponse(msg.id, msg.action, {}, `Unknown action: ${msg.action}`)));
+                case 'search': await handleSearch(this.app, msg, virtualWs, this.settings); break;
+                case 'read': await handleRead(this.app, msg, virtualWs); break;
+                case 'write': await handleWrite(this.app, msg, virtualWs); break;
+                case 'delete': await handleDelete(this.app, msg, virtualWs); break;
+                case 'sync_full': await handleSyncFull(this.app, msg, virtualWs, this.settings); break;
+                case 'sync_since': await handleSyncSince(this.app, msg, virtualWs, this.settings); break;
+                case 'check_consistency': await handleCheckConsistency(this.app, msg, virtualWs, this.settings); break;
+                default: send(stringifyMessage(buildResponse(msg.id, msg.action, {}, 'Unknown action')));
             }
-        } catch (e) {
-            console.error('WsClient: handler error:', e);
-        }
+        } catch (e) { console.error('WsClient: handler error:', e); }
     }
 
     private scheduleReconnect(): void {
@@ -213,11 +167,7 @@ export class WsClient {
             this.reconnectTimer = null;
             console.log('WsClient: reconnecting...');
             const ok = await this.connect();
-            if (ok) {
-                console.log('WsClient: reconnected');
-            } else if (!this.connected) {
-                this.scheduleReconnect();
-            }
+            if (!ok && !this.connected) this.scheduleReconnect();
         }, this.reconnectDelay);
     }
 }

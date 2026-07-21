@@ -12,9 +12,31 @@
  * }
  */
 
-import { WebSocket } from 'ws';
-import { timingSafeEqual, randomUUID } from 'crypto';
 import type { AstrbotConnectSettings } from '../settings';
+
+/** 生成 UUID v4（兼容 Node.js 和浏览器） */
+function randomUUID(): string {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+        return crypto.randomUUID();
+    }
+    // fallback
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+        const r = Math.random() * 16 | 0;
+        return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+    });
+}
+
+/** Timing-safe 字符串比较（兼容 Node.js 和浏览器，使用 Uint8Array） */
+function timingSafeEqualStr(a: string, b: string): boolean {
+    const ab = new TextEncoder().encode(a);
+    const bb = new TextEncoder().encode(b);
+    if (ab.length !== bb.length) return false;
+    let result = 0;
+    for (let i = 0; i < ab.length; i++) {
+        result |= ab[i] ^ bb[i];
+    }
+    return result === 0;
+}
 
 /** 协议消息接口 */
 export interface ProtocolMessage {
@@ -26,9 +48,11 @@ export interface ProtocolMessage {
     timestamp: number;
 }
 
-/** 扩展 WebSocket，携带认证状态 */
-export interface AuthenticatedWebSocket extends WebSocket {
+/** 虚拟 WebSocket 接口 — 兼容浏览器 WebSocket 和 ws 包 */
+export interface AuthenticatedWebSocket {
     isAuthenticated: boolean;
+    send(data: string): void;
+    close(code?: number, reason?: string): void;
 }
 
 /** 合法的 action 值 */
@@ -142,27 +166,15 @@ export function verifyToken(
 ): boolean {
     const expected = settings.apiToken;
     if (!expected) {
-        // 如果未配置 token，允许所有连接（不安全，但便于开发）
         ws.isAuthenticated = true;
         return true;
     }
 
-    const tokenBuf = Buffer.from(token);
-    const expectedBuf = Buffer.from(expected);
-
-    if (tokenBuf.length !== expectedBuf.length) {
+    if (!timingSafeEqualStr(token, expected)) {
         return false;
     }
-
-    try {
-        const matches = timingSafeEqual(tokenBuf, expectedBuf);
-        if (matches) {
-            ws.isAuthenticated = true;
-        }
-        return matches;
-    } catch {
-        return false;
-    }
+    ws.isAuthenticated = true;
+    return true;
 }
 
 /**
