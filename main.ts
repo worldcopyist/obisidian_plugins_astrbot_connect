@@ -85,7 +85,6 @@ export default class AstrbotConnectPlugin extends Plugin {
             console.warn('[obsidian-astrbot] connection failed, retrying in 10s...');
             setTimeout(() => this.startConnection(), 10000);
         }
-        }
     }
 
     private async stopConnection(): Promise<void> {
