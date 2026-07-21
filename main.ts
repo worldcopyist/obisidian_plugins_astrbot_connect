@@ -50,16 +50,21 @@ export default class AstrbotConnectPlugin extends Plugin {
 
     async loadSettings(): Promise<void> {
         const saved = await this.loadData();
+        console.log('[obsidian-astrbot] loadData raw:', JSON.stringify(saved));
         this.settings = Object.assign({}, DEFAULT_SETTINGS, saved || {});
-        console.log('[obsidian-astrbot] settings loaded — url:', this.settings.astrbotUrl, 'token:', this.settings.apiToken ? '***' : 'EMPTY', 'raw data:', JSON.stringify(saved));
+        console.log('[obsidian-astrbot] merged settings — url:', this.settings.astrbotUrl, 'token:', this.settings.apiToken ? '***' : 'EMPTY');
     }
 
     async saveSettings(): Promise<void> {
+        console.log('[obsidian-astrbot] saveSettings called — saving:', JSON.stringify(this.settings));
         try {
             await this.saveData(this.settings);
-            console.log('[obsidian-astrbot] settings saved to data.json — token:', this.settings.apiToken ? '***' : 'EMPTY');
+            console.log('[obsidian-astrbot] saveData SUCCESS');
+            // verify immediately
+            const verify = await this.loadData();
+            console.log('[obsidian-astrbot] verify after save:', JSON.stringify(verify));
         } catch (e) {
-            console.error('[obsidian-astrbot] saveData failed:', e);
+            console.error('[obsidian-astrbot] saveData FAILED:', e);
         }
     }
 
