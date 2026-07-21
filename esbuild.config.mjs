@@ -29,6 +29,7 @@ const context = await esbuild.context({
     '@lezer/highlight',
     '@lezer/lr',
   ],
+  platform: 'node',
   format: 'cjs',
   target: 'es2020',
   logLevel: 'info',

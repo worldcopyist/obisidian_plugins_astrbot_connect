@@ -51,7 +51,7 @@ export const DEFAULT_SETTINGS: AstrbotConnectSettings = {
  * 配置通过 `plugin.settings` 读写，Obsidian 自动管理 data.json 持久化。
  */
 export class AstrbotConnectSettingTab extends PluginSettingTab {
-    plugin: any;
+    plugin: AstrbotConnectPlugin;
 
     constructor(app: App, plugin: AstrbotConnectPlugin) {
         super(app, plugin);
