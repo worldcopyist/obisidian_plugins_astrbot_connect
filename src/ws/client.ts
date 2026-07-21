@@ -73,7 +73,6 @@ export class WsClient {
                     this.connected = false;
                     this.authenticated = false;
                     this.ws = null;
-                    if (event.code !== 1000) this.scheduleReconnect();
                 };
 
                 this.ws.onerror = (ev: Event) => {

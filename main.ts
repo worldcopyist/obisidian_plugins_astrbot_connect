@@ -49,12 +49,14 @@ export default class AstrbotConnectPlugin extends Plugin {
     }
 
     async loadSettings(): Promise<void> {
-        this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+        const saved = await this.loadData();
+        this.settings = Object.assign({}, DEFAULT_SETTINGS, saved || {});
+        console.log('[obsidian-astrbot] settings loaded — url:', this.settings.astrbotUrl, 'token:', this.settings.apiToken ? '***' : 'EMPTY', 'raw data:', JSON.stringify(saved));
     }
 
     async saveSettings(): Promise<void> {
         await this.saveData(this.settings);
-
+        console.log('[obsidian-astrbot] settings saved');
         if (this.wsClient) {
             await this.stopConnection();
             await this.startConnection();
@@ -67,22 +69,22 @@ export default class AstrbotConnectPlugin extends Plugin {
         const url = this.settings.astrbotUrl || 'ws://127.0.0.1:27123';
         const token = this.settings.apiToken || '';
 
+        console.log('[obsidian-astrbot] startConnection — url:', url, 'token:', token ? '***' : 'EMPTY');
         this.wsClient = new WsClient(url, token, this.app, this.settings);
 
-        // 设置广播回调：文件变更推送到 AstrBot
         if (this.watcher) {
             this.watcher.setBroadcastFn((msg) => {
-                if (this.wsClient) {
-                    this.wsClient.send(msg);
-                }
+                if (this.wsClient) this.wsClient.send(msg);
             });
         }
 
         const connected = await this.wsClient.connect();
         if (connected) {
-            console.log('AstrBot Connect: client mode active, connecting to', url);
+            console.log('[obsidian-astrbot] TCP connected, waiting for auth...');
         } else {
-            console.warn('AstrBot Connect: initial connection failed');
+            console.warn('[obsidian-astrbot] connection failed, retrying in 10s...');
+            setTimeout(() => this.startConnection(), 10000);
+        }
         }
     }
 
