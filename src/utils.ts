@@ -33,7 +33,7 @@ export function isIndexable(file: TFile, settings: AstrbotConnectSettings): bool
     // 白名单检查：如果配置了 includeFolders，路径必须以其中之一开头
     if (settings.includeFolders.length > 0) {
         const included = settings.includeFolders.some(
-            (folder) => path.startsWith(folder + '/') || path.startsWith(folder)
+            (folder) => path.startsWith(folder.endsWith('/') ? folder : folder + '/')
         );
         if (!included) {
             return false;
@@ -43,7 +43,7 @@ export function isIndexable(file: TFile, settings: AstrbotConnectSettings): bool
     // 黑名单检查：如果配置了 excludeFolders，路径不能以其中之一开头
     if (settings.excludeFolders.length > 0) {
         const excluded = settings.excludeFolders.some(
-            (folder) => path.startsWith(folder + '/') || path.startsWith(folder)
+            (folder) => path.startsWith(folder.endsWith('/') ? folder : folder + '/')
         );
         if (excluded) {
             return false;
