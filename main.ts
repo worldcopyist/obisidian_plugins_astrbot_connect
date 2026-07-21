@@ -1,4 +1,4 @@
-import { App, Plugin, PluginSettingTab, Setting } from 'obsidian';
+import { Plugin } from 'obsidian';
 
 export default class AstrBotConnectPlugin extends Plugin {
 	async onload() {
