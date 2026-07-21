@@ -42,11 +42,11 @@ export class WsClient {
     async connect(): Promise<boolean> {
         return new Promise((resolve) => {
             try {
-                console.log('WsClient: connecting to', this.url);
+                console.log('[obsidian-astrbot] connecting to', this.url, 'token:', this.token ? 'set' : 'empty');
                 this.ws = new WebSocket(this.url);
 
                 this.ws.onopen = () => {
-                    console.log('WsClient: TCP connected, sending auth...');
+                    console.log('[obsidian-astrbot] TCP connected, sending auth...');
                     this.connected = true;
                     const vaultName = this.app.vault.getName();
                     const authMsg = {
@@ -57,29 +57,31 @@ export class WsClient {
                         error: null,
                         timestamp: Math.floor(Date.now() / 1000),
                     };
+                    console.log('[obsidian-astrbot] auth payload:', JSON.stringify(authMsg));
                     this.ws!.send(JSON.stringify(authMsg));
                     resolve(true);
                 };
 
                 this.ws.onmessage = (event: MessageEvent) => {
                     const raw = typeof event.data === 'string' ? event.data : '';
+                    console.log('[obsidian-astrbot] received:', raw.substring(0, 200));
                     if (raw) this.handleMessage(raw);
                 };
 
                 this.ws.onclose = (event: CloseEvent) => {
-                    console.log('WsClient: disconnected, code:', event.code, 'reason:', event.reason);
+                    console.log('[obsidian-astrbot] CLOSE code:', event.code, 'reason:', event.reason, 'wasClean:', event.wasClean);
                     this.connected = false;
                     this.authenticated = false;
                     this.ws = null;
                     if (event.code !== 1000) this.scheduleReconnect();
                 };
 
-                this.ws.onerror = () => {
-                    console.error('WsClient: connection error');
+                this.ws.onerror = (ev: Event) => {
+                    console.error('[obsidian-astrbot] ERROR — readyState:', this.ws?.readyState, 'url:', this.url);
                     if (!this.connected) resolve(false);
                 };
             } catch (e) {
-                console.error('WsClient: failed to create WebSocket:', e);
+                console.error('[obsidian-astrbot] failed to create WebSocket:', e);
                 resolve(false);
             }
         });
